@@ -1,0 +1,226 @@
+---
+title: "FINAL_PART1"
+author: "Neemias Moreira"
+date: "2023-12-07"
+output: html_document
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+##### This the final project Part-1, Clustering:
+
+### Goal: Analyze the structure of the Avian Measurements data set.
+
+```{r, include=FALSE}
+library(stats)
+library(ggplot2)
+library(factoextra)
+library(corrplot)
+library(cluster)
+library(dendextend)
+AvianM <- read.csv("AvianMeasurements.csv")
+str(AvianM)
+head(AvianM)
+tail(AvianM)
+any(is.na(AvianM))
+
+```
+
+### First let's do a exploratory analisys on the data set.
+
+```{r, echo = TRUE}
+str(AvianM)
+head(AvianM)
+tail(AvianM)
+any(is.na(AvianM))
+na_count <- sum(is.na(AvianM))
+cat("Number of NA values in the dataset:", na_count, "\n")
+
+```
+
+As we have some NA values on the data set let's do a cleaning on those rows.
+
+```{r , echo=TRUE}
+AvianM1 <- na.omit(AvianM)
+any(is.na(AvianM1))
+```
+
+## Now let's start the K-Means clustering to group the Avian Measurements dataset.
+ 
+Let's start the data exploratory with the heat map of the data set:
+```{r , echo=FALSE}
+dfAvianM <- scale(AvianM1)
+set.seed(259)
+df1<- sample(1:50,10)
+dfr1<-dfAvianM[df1,]
+distE0 <- dist(dfr1, method='euclidian')
+round(as.matrix(distE0)[1:4, 1:4], 1)
+fviz_dist(distE0)
+```
+
+Using the elbow plot to determine the best value of k using an elbow plot:
+
+```{r , echo=TRUE}
+wss <- sapply(1:df1, function(k){kmeans(AvianM1, k, nstart=20, iter.max=15)$tot.withinss})
+plot(1:df1, wss, type="b", pch =19, frame=FALSE, xlab="Number of Clusters K", ylab="Total within-clusters sum of squares")
+
+fviz_nbclust(AvianM1, kmeans, method="wss") + geom_vline(xintercept =3, linetype= 5, col= "blue")
+```
+
+Testing with 3 clusters:
+
+```{r , echo=TRUE}
+km.res_final_3 <- kmeans(dfAvianM, 3, nstart = 25)
+km.res_final_3$totss
+km.res_final_3$betweenss
+km.res_final_3$betweenss/km.res_final_3$totss
+```
+Those are the values about the Totss with Betweenss, the meaning of this value is to show about, the percentage of variation explained by clustering is frequently calculated using these two metrics, and this information can be helpful in assessing how well the clustering solution fits the data.
+
+In this case the value is 0.739, where show us a good correlation with 3 clusters.
+
+To a better understanding of the data set, let's plot some visualization:
+```{r , echo=FALSE}
+avian_menber_3 <- cbind(AvianM1, cluster = km.res_final_3$cluster)
+
+fviz_cluster(km.res_final_3, data=AvianM1)
+```
+Now another visualization:
+```{r , echo=FALSE}
+fviz_cluster(km.res_final_3, data = AvianM1,
+             palette=c("red", "blue", "black"),
+             ellipse.type = "euclid",
+             star.plot = T,
+             repel = T,
+             ggtheme = theme())
+
+
+```
+
+Now, Mean, Median and Standard Variation:
+
+```{r , echo=TRUE}
+aggregate(AvianM1, by=list(cluster=avian_menber_3$cluster), mean)
+aggregate(AvianM1, by=list(cluster=avian_menber_3$cluster), median)
+aggregate(AvianM1, by=list(cluster=avian_menber_3$cluster), sd)
+```
+To summarize, the standard deviation quantifies the range of values surrounding the mean, the mean provides an average number, and the median provides a center value. When combined, these metrics provide a thorough grasp of the variability and central tendency of a dataset.
+
+# Now let's try with another value of K-4 Clusters:
+
+```{r, echo=FALSE}
+km.res_final <- kmeans(dfAvianM, 4, nstart = 25)
+km.res_final$totss
+km.res_final$betweenss
+km.res_final$betweenss/km.res_final$totss
+```
+
+In this case the value is 0.785, a small improvement on the ratio.
+
+However, let's visualization those clusters:
+
+```{r, echo=FALSE}
+avian_menber <- cbind(AvianM1, cluster = km.res_final$cluster)
+fviz_cluster(km.res_final, data=AvianM1)
+
+```
+One more visualization:
+```{r, echo=FALSE}
+fviz_cluster(km.res_final, data = AvianM1,
+             palette=c("red", "blue", "black","brown"),
+             ellipse.type = "euclid",
+             star.plot = T,
+             repel = T,
+             ggtheme = theme())
+
+```
+
+As we can see with 4 clusters with have overlap of clusters what is not interest to further analysis.
+
+
+With K-3 clusters has the best distribution.
+
+
+## Now using  Hierarchical clustering to group the Avian Measurements data set.
+```{r, echo=FALSE}
+
+set.seed(123)
+ss <- sample (1:50, 10)
+df1 <- dfAvianM[ss,]
+
+### Data Prep
+res.dist1 <- dist(df1, method="euclidean")
+### HC methods to compare
+hcl1 <- hclust(res.dist1, method="average")
+hcl2 <- hclust(res.dist1, method="ward.D2")
+
+### Create the dendrograms
+dend1 <- as.dendrogram(hcl1)
+dend2 <- as.dendrogram(hcl2)
+```
+
+# Dendrogram using AGNES:
+```{r, echo=FALSE}
+res.agnes_avian <- agnes(x=AvianM1, stand = TRUE, 
+                   metric = "eucledian", method="ward")
+
+fviz_dend(res.agnes_avian, cex=0.6, k=4)
+
+```
+
+# Cophenetic correlation value:
+```{r, echo=FALSE}
+dend_list <- dendlist(dend1, dend2)
+cor.dendlist(dend_list, method="cophenetic")
+cor_cophenetic(dend1, dend2)
+
+```
+
+## Use the dendrogram to determine a value for k. Justify your value of k
+
+```{r, echo=FALSE}
+### List to hold the dendrograms
+dend_list <- dendlist(dend1, dend2)
+
+### Visual comparison with untangle()
+dendlist(dend1, dend2) %>% 
+  untangle(method="step1side") %>%
+  tanglegram()
+
+dendlist(dend1, dend2) %>% 
+  untangle(method="step1side") %>%
+  entanglement()
+
+### Customize the visual
+dendlist(dend1, dend2) %>% 
+  untangle(method="step1side") %>%
+  tanglegram(highlight_distinct_edges=FALSE, 
+             common_subtrees_color_lines = FALSE, 
+             common_subtrees_color_branches = TRUE)
+```
+
+## A visualization with color with AGNES method k clusters:
+
+
+```{r, echo=FALSE}
+fviz_dend(res.agnes_avian, cex=10, k=3)
+```
+
+## Dendrogram using DIANA:
+
+```{r, echo=FALSE}
+res.diana <- diana(x=AvianM, stand = TRUE, 
+                   metric = "euclidean")
+fviz_dend(res.diana, cex=0.6, k=2)
+```
+
+## To sum up:
+In the comprehensive exploration of the Avian Data Set, various methodologies have been employed, each offering distinct approaches that contribute valuable insights to the dataset's intricate patterns. It is evident that a deeper analysis of this dataset holds great promise.
+
+In my perspective, the most effective means of determining the optimal number of clusters (k) is through the utilization of an elbow plot. This graphical representation not only aids in identifying the elbow point but also highlights the significance of selecting an appropriate value for k in the K-means clustering algorithm. Notably, the elbow plot analysis suggests that the most advantageous configuration for k is three in the context of the Avian Data Set.
+
+The choice of three clusters not only aligns with the elbow plot's recommendation but also yields meaningful results. Employing the K-means algorithm with k set to 3 generates clusters that encapsulate substantial insights within the dataset. Furthermore, this approach enhances the interpretability of the results and facilitates a more intuitive understanding of the underlying patterns.
+
+Additionally, the visual representation of these clusters through the elbow plot contributes to the efficacy of the analysis. The resulting visualization provides a clear and concise depiction of the data's inherent structures, enabling stakeholders to grasp the nuances of the Avian Data Set in a more accessible manner.
+
+In conclusion, the amalgamation of diverse methodologies and the adoption of the elbow plot for determining k collectively strengthen the foundation for a comprehensive analysis of the Avian Data Set. The strategic choice of three clusters, supported by the elbow plot, not only optimizes the K-means algorithm but also enriches the overall understanding of the dataset's intricacies, setting the stage for further exploration and insights.
