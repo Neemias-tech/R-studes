@@ -13,5 +13,5 @@ A data frame with 55 observations on the following 5 variables.
 It is a project on the data set AVIAN MESUREMENT. 
 That project is about creating clustering and dendrogram with different methods to choose the best number to create the best distribution. 
 
-#Boosting - Bagging and RF
+# Boosting - Bagging and RF
 It is a project using Abalone data set to create a prediction model using 3 different tools and testing the efficiency of each one.
