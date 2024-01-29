@@ -1,0 +1,328 @@
+---
+title: "Project Boosting, Bagging and Random forest"
+author: "Neemias Moreira"
+date: "2023-12-11"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#### Classification using Bagging, Boosting and RF: Goal: Analyze the structure of the abalone dataset
+
+## The goal is to  to develop a classification model that predicts the sex of the abalone train set using all variables
+
+```{r ,, message=FALSE, warning=FALSE}
+library(rpart)
+library(adabag)
+library(tidyverse)
+library(adabag)
+iris <- read.csv('abalone.csv',
+                 
+                 header = TRUE, col.names = c("Sex","Lenght","Diameter","Height", "whole weight", "Shucked weight", "Viscera weight", "Shell weight","Rings."))
+
+str(iris)
+
+```
+
+# Dividing the data into a test a train set (70/30):
+We divide the test and the train set in 70/30. To create and develop a model to prediction and test our model.
+
+```{r , echo=FALSE}
+
+set.seed(2019)
+
+formula <- Sex ~ .
+vardep <- iris[, as.character(formula[[2]])]
+cntrl <-rpart.control(maxdepth=30, minsplit = 1, cp = -1)
+
+TrainIDs <- sample(1:nrow(iris), 0.7 * nrow(iris))
+train <- iris[TrainIDs, ]
+test <- iris[-TrainIDs, ]
+
+###### Build a Full DT and see how it does ###########
+iris.rpart <- rpart(formula = formula, method = "class", data = train, control = cntrl)
+```
+
+
+# Now let's start testing the prediction on the training and test set using the table prediction:
+
+```{r,echo=FALSE}
+# training set
+iris.predrpart_train <- predict(iris.rpart, newdata = train, type = "class")
+table(iris.predrpart_train, train$Sex, dnn=c("Predicted sex", "Observed sex"))
+error_rate_train <- 1 - sum(iris.predrpart_train == train$Sex) / length(train$Sex)
+cat("Train Set Error Rate:: ", error_rate_train, "\n")
+
+# test set
+iris.predrpart_test <- predict(iris.rpart, newdata = iris[-TrainIDs, ], type = "class")
+table(iris.predrpart_test, iris$Sex[-TrainIDs], dnn=c("Predicted Sex", "Observed Sex"))
+error_rate_test <- 1 - sum(iris.predrpart_test == iris$SEX[-TrainIDs]) / length(iris$SEX[-TrainIDs])
+cat("Test Set Error Rate:", error_rate_test, "\n")
+
+```
+
+## Use Bagging to develop a classification model that predicts the sex of the abalone train set using all variables:
+I choose to put all the variables of the data set to create my model to have a better prediction of the sex.
+
+```{r, echo=TRUE}
+train$Sex <- factor(train$Sex, levels = c("F", "I", "M"))
+print(levels(train$Sex))
+```
+I used the code above to transform all of the sex column data from characters to factors.
+That was important to make all the predictions of this project work properly.
+
+
+# Starting the Bagging Model:
+
+```{r, echo=FALSE}
+iris.bagging <- bagging(formula = formula, data = train, mfinal = 10, control = rpart.control(maxdepth = 1))
+iris.bagging$samples[, 1]
+summary(as.factor(iris.bagging$samples[, 1]))
+```
+Now, ploting the variable relative importance:
+```{r, echo=FALSE}
+importanceplot(iris.bagging, horiz = FALSE)
+iris.bagging$importance
+```
+
+Also, training and testing the prediction using the Bagging function:
+Training:
+```{r, echo=FALSE}
+iris.prebagging_train <- predict.bagging(iris.bagging, newdata = train)
+table(iris.prebagging_train$class, train$Sex, dnn = c("Sex predict", "Observed Sex"))
+```
+Test:
+```{r, echo=FALSE}
+iris.prebagging_test <- predict.bagging(iris.bagging, newdata = iris[-TrainIDs, ])
+table(iris.prebagging_test$class, iris$Sex[-TrainIDs], dnn = c("Sex predict", "Observed Sex"))
+```
+
+Lastly seeing the outcome of the Bagging and seeing the Confusion Matrix:
+```{r, echo=FALSE}
+iris.baggingcv <- bagging.cv(formula = formula, data = train, v = 10, mfinal = 10, control = rpart.control(maxdepth = 1))
+
+iris.baggingcv
+```
+
+
+## Now using Boosting to develop a classification model that predicts the sex of the abalone train set using all variables. 
+Starting the boosting model:
+```{r, echo=FALSE}
+iris.adaboost <- boosting(formula = formula, data = train, mfinal = 10,
+                          control = rpart.control(maxdepth=1))
+```
+Now, ploting the variable relative importance:
+```{r, echo=FALSE}
+importanceplot(iris.adaboost, horiz=FALSE)
+```
+
+Also, training and testing the prediction using the Boosting function:
+Training:
+```{r, echo=FALSE}
+table(iris.adaboost$class, train$Sex, dnn=c("Predicted Sex", "Observed Sex"))
+1-sum(iris.adaboost$class == train$Sex) / length(train$Sex)
+
+```
+Test:
+```{r, echo=FALSE}
+iris.predboosting <- predict.boosting(iris.adaboost, newdata = test)
+iris.predboosting
+```
+
+Lastly seeing the outcome of the Bagging and seeing the Confusion Matrix:
+```{r, echo=FALSE}
+iris.boostcv <- boosting.cv(formula = formula, data = train, v = 10, mfinal = 10, control = rpart.control(maxdepth = 1))
+iris.boostcv
+```
+
+
+## Now, using Random Forest to develop a classification model that predicts the sex of the abalone train set using all the variables:
+
+```{r, echo=FALSE}
+set.seed(2019)
+
+data <- iris %>%
+  mutate(set = ifelse(runif(nrow(.)) > 0.75, "test", "train"))
+train <- data %>% filter(set == "train") %>% select(-set)
+test <- data %>% filter(set == "test") %>% select(-set)
+
+```
+
+# Now, let's do a graph density of sex with with the variables:
+First train test
+Second test set
+
+```{r, echo=FALSE}
+glimpse(data)
+
+# Get a visual of the train set and the test set
+train %>%
+  ggplot(aes(Sex)) +
+  geom_density(fill = "#ff6767", alpha = 0.5) +
+  theme_bw(22)
+
+test %>%
+  ggplot(aes(Sex)) +
+  geom_density(fill = "#ff6767", alpha = 0.5) +
+  theme_bw(22)
+```
+
+# Now building a single decision tree for comparison to random forest results:
+
+```{r, echo=FALSE}
+
+library(rpart)
+library(rpart.plot)
+
+first_model <- rpart(Sex ~ Diameter,
+                     data = train)
+
+rpart.plot(first_model)
+```
+
+# Adding now a few more predictors to a single DT
+
+```{r, echo=FALSE}
+second_model <- rpart(Sex ~ Diameter + Height + Viscera.weight + Shell.weight,
+                      data = train)
+rpart.plot(second_model)
+```
+
+# What are the most important variables ?
+
+```{r, echo=FALSE}
+first_model$variable.importance/max(first_model$variable.importance)
+
+second_model$variable.importance/max(second_model$variable.importance)
+```
+
+# Make some predictions uuing the test set:
+
+```{r, echo=FALSE}
+pred_first <- predict(first_model, test)
+pred_second <- predict(second_model, test)
+```
+# Measuring the prediction error:
+
+```{r, echo=FALSE}
+rmse <- function(x) sqrt(sum((x - test$Height)^2))
+rmse(pred_first)
+rmse(pred_second)
+```
+The root mean square error (RMSE) is a measure of the differences between predicted values and observed (actual) values. It's commonly used to evaluate the accuracy of a predictive model.
+Also when lower is the value better is the prediction. In this case predction one waas slight better.
+
+## Ramdon florest:
+
+```{r, echo=FALSE}
+library(ranger)
+train$Sex <- as.factor(train$Sex)
+
+first_rf <- ranger(Sex ~ Diameter + whole.weight + Height + Viscera.weight,
+                   num.trees = 1, mtry = 4, data = train)
+first_rf
+
+```
+The first Random Forest came out with 55% of prediction error.
+
+Trying with all the variables now:
+
+```{r, echo=FALSE}
+second_rf <-  ranger(Sex ~ ., num.trees = 50, data = train,
+                     importance = "impurity")
+second_rf
+```
+The prediction with all the variables have a better percentage of error of 46%.
+
+
+# Now doing some predictions on the Random Florest:
+```{r , echo=FALSE}
+pred_rf_first <- predict(first_rf, test)$predictions
+pred_rf_second <- predict(second_rf, test)$predictions
+test$Height <- as.numeric(as.character(test$Height))
+accuracy <- sum(pred_rf_first == test$Sex) / length(test$Sex)
+print(accuracy)
+```
+
+This the value of accuracy.
+
+
+# Now, ploting the predicted sex versus the actual sex:
+
+Also, there is the evaluation of the importance.
+
+
+```{r , echo=FALSE}
+test %>%
+  mutate(predicted = predict(second_rf, test)$predictions) %>%
+  ggplot(aes(predicted, Sex)) +
+  geom_point(colour = "#ff6767", alpha = 0.3) +
+  labs(title = "Predicted and observed") +  theme_bw(18)
+
+# Evaluation of the Importance
+imps <- data.frame(var = names(train)[-7],
+                   imps = second_rf$variable.importance/max(second_rf$variable.importance))
+imps %>%
+  ggplot(aes(imps, x = reorder(var, imps))) +
+  geom_point(size = 3, colour = "#ff6767") +
+  coord_flip() +
+  labs(x = "Predictors", y = "Importance scores") +
+  theme_bw(18)
+
+```
+# As Random Forests are highly sensitive to correlated predictors.  The following code RF will split their importance.
+
+```{r, echo=FALSE}
+corrplot::corrplot(cor(data %>% select_if(is.numeric),
+                       method = "spearman"))
+
+third_rf <- ranger(Sex ~ Height + Lenght + whole.weight +
+                     Shucked.weight + Viscera.weight + Shell.weight + Rings., num.trees = 50,
+                   importance = "impurity", data = train)
+third_rf
+```
+
+Now, let's testing the 3rd Random Forest:
+
+```{r, echo=FALSE}
+# Make some predictions on the test set.
+
+pred_rf_third <- predict(third_rf, test)$predictions
+
+##### Measure the prediction error
+pred_rf_third <- as.factor(pred_rf_third)
+
+# Calculate the accuracy
+accuracy <- sum(pred_rf_third == test$Sex) / length(test$Sex)
+print(accuracy)
+```
+The third error rate is better on this 3rd model. The percentage is 45%.
+
+# Now, evaluate the importance of the variables:
+
+```{r, echo=FALSE}
+imps <- data.frame(var = third_rf$forest$independent.variable.names,
+                   imps = third_rf$variable.importance/max(third_rf$variable.importance))
+imps %>%
+  ggplot(aes(imps, x = reorder(var, imps))) +
+  geom_point(size = 3, colour = "#ff6767") +
+  coord_flip() +
+  labs(x = "Predictors", y = "Importance scores") +
+  theme_bw(18)
+
+```
+# Now comparing the predicted sex to the actual sex: 
+
+```{r, echo=FALSE}
+test %>%
+  mutate(predicted = predict(third_rf, test)$predictions) %>%
+  ggplot(aes(predicted, Sex)) +
+  geom_point(colour = "#ff6767", alpha = 0.3) +
+  labs(title = "Predicted and observed") +
+  theme_bw(18)
+
+```
+
+### In my analisys the best prediction was performed by the last Random Forest, that made a better percentage on the predction. 
